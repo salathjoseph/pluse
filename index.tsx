@@ -157,7 +157,7 @@ Rules:
 2. Be brief, non-judgmental, and evidence-based.
 3. You are NOT a medical tool. Explicitly state this if medical advice is asked.
 4. Encourage offline hobbies and mindfulness.
-5. If crisis is detected, provide support and suggest professional help.`;
+5. If crisis is detected, provide support and suggest professional help. Only provide emergency numbers for India/Tamil Nadu: Emergency/Ambulance (108), Police (100), Sneha Suicide Prevention (+91-44-24640050 or 104).`;
 
 const getApiKey = () => {
   const envKey = import.meta.env.VITE_GEMINI_API_KEY;
@@ -620,9 +620,9 @@ const ChatPage = ({ profile, ...props }: any) => {
                 <div className="bg-rose-50 dark:bg-rose-900/20 p-4 rounded-2xl border border-rose-100 dark:border-rose-900">
                   <h4 className="font-bold text-rose-700 dark:text-rose-400 mb-2">Immediate Support:</h4>
                   <ul className="text-sm space-y-2 text-slate-700 dark:text-slate-300">
-                    <li><strong>US:</strong> Call 988 (Suicide & Crisis Lifeline)</li>
-                    <li><strong>UK:</strong> Text SHOUT to 85258</li>
-                    <li><strong>Intl:</strong> befrienders.org</li>
+                    <li><strong>TN Emergency/Ambulance:</strong> Call 108 or 100</li>
+                    <li><strong>Sneha Suicide Prevention (Chennai):</strong> +91 44 24640050</li>
+                    <li><strong>State Health Helpline:</strong> Call 104</li>
                   </ul>
                 </div>
                 <Button className="w-full text-lg py-4" onClick={() => setIsCrisis(false)}>Return to Pulse</Button>

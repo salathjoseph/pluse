@@ -27,7 +27,11 @@ import {
   Calendar,
   Sparkles,
   Smartphone,
-  Check
+  Check,
+  Volume2,
+  VolumeX,
+  Mic,
+  MicOff
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GoogleGenAI } from "@google/genai";
@@ -426,10 +430,36 @@ const ChatPage = ({ profile, ...props }: any) => {
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [isCrisis, setIsCrisis] = useState(false);
+  const [isVoiceEnabled, setIsVoiceEnabled] = useState(false);
+  const [isListening, setIsListening] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { DB.getMessages('main').then(setMessages); }, []);
   useEffect(() => { scrollRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, isTyping]);
+
+  const toggleListening = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Speech recognition is not supported in your browser.");
+      return;
+    }
+    
+    if (isListening) return;
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    
+    recognition.onstart = () => setIsListening(true);
+    recognition.onresult = (e: any) => {
+      const transcript = e.results[0][0].transcript;
+      setInput(prev => prev ? prev + ' ' + transcript : transcript);
+    };
+    recognition.onerror = () => setIsListening(false);
+    recognition.onend = () => setIsListening(false);
+    
+    recognition.start();
+  };
 
   const onSend = async () => {
     if (!input.trim() || isTyping) return;
@@ -439,6 +469,12 @@ const ChatPage = ({ profile, ...props }: any) => {
     setMessages(prev => [...prev, userMsg]);
     setIsTyping(true);
     const botResponse = await fetchBotResponse(messages, text);
+    if (isVoiceEnabled && 'speechSynthesis' in window) {
+      const cleanText = botResponse.replace(/[*#]/g, '');
+      const utterance = new SpeechSynthesisUtterance(cleanText);
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(utterance);
+    }
     const botMsg = await DB.saveMessage('main', 'bot', botResponse);
     setMessages(prev => [...prev, botMsg]);
     setIsTyping(false);
@@ -459,7 +495,19 @@ const ChatPage = ({ profile, ...props }: any) => {
               </p>
             </div>
           </div>
-          <Info className="w-5 h-5 text-slate-400 cursor-pointer" onClick={() => alert("Pulse AI is for digital well-being support. It is NOT a medical device.")} />
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => {
+                if (isVoiceEnabled) window.speechSynthesis.cancel();
+                setIsVoiceEnabled(!isVoiceEnabled);
+              }}
+              className={`p-2 rounded-xl transition-all ${isVoiceEnabled ? 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400' : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+              title={isVoiceEnabled ? "Mute AI Voice" : "Enable AI Voice"}
+            >
+              {isVoiceEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
+            </button>
+            <Info className="w-5 h-5 text-slate-400 cursor-pointer hover:text-slate-600 dark:hover:text-slate-300" onClick={() => alert("Pulse AI is for digital well-being support. It is NOT a medical device.")} />
+          </div>
         </header>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-hide">
@@ -495,12 +543,19 @@ const ChatPage = ({ profile, ...props }: any) => {
 
         <div className="p-4 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800">
           <div className="relative flex items-center gap-2 max-w-4xl mx-auto">
+            <button 
+              onClick={toggleListening} 
+              className={`p-4 rounded-2xl transition-all ${isListening ? 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400' : 'bg-slate-100 text-slate-400 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700'}`}
+              title={isListening ? "Listening..." : "Speak to Text"}
+            >
+              {isListening ? <Mic className="w-6 h-6 animate-pulse" /> : <Mic className="w-6 h-6" />}
+            </button>
             <input
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && onSend()}
-              placeholder="Share your thoughts or ask for a detox tip..."
+              placeholder={isListening ? "Listening... Speak now" : "Share your thoughts or ask for a detox tip..."}
               className="flex-1 bg-slate-100 dark:bg-slate-800 border-none rounded-2xl px-6 py-4 text-sm focus:ring-2 focus:ring-indigo-500 outline-none dark:text-white"
             />
             <button onClick={onSend} className="p-4 bg-indigo-600 text-white rounded-2xl shadow-xl hover:bg-indigo-700 transition-all active:scale-95 disabled:opacity-50" disabled={!input.trim() || isTyping}>

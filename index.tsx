@@ -155,10 +155,26 @@ Rules:
 4. Encourage offline hobbies and mindfulness.
 5. If crisis is detected, provide support and suggest professional help.`;
 
+const getApiKey = () => {
+  const envKey = import.meta.env.VITE_GEMINI_API_KEY;
+  if (envKey && envKey !== 'undefined') return envKey;
+  
+  let localKey = localStorage.getItem('pulse_api_key');
+  if (!localKey) {
+    localKey = window.prompt("Please enter your Gemini API Key to enable AI features (it will be saved locally):");
+    if (localKey) {
+      localStorage.setItem('pulse_api_key', localKey);
+    }
+  }
+  return localKey || "";
+};
+
 const fetchBotResponse = async (history: Message[], input: string): Promise<string> => {
-  // Use named parameter and direct process.env.API_KEY as per guidelines
-  const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
   try {
+    const apiKey = getApiKey();
+    if (!apiKey) return "API key is required to use this feature. Please refresh the page and enter your Gemini API key.";
+    
+    const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: [
@@ -169,9 +185,9 @@ const fetchBotResponse = async (history: Message[], input: string): Promise<stri
       ] as any,
       config: { systemInstruction: SYSTEM_PROMPT, temperature: 0.6 }
     });
-    // Use .text property directly instead of .text()
     return response.text || "I'm here for you. Let's take a deep breath.";
-  } catch (e) {
+  } catch (e: any) {
+    console.error("AI Error:", e);
     return "I'm momentarily disconnected to maintain your data privacy. Please try again soon.";
   }
 };

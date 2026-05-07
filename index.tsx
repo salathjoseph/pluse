@@ -171,6 +171,27 @@ const getApiKey = () => {
     }
   }
   return localKey || "";
+  return localKey || "";
+};
+
+const speakText = (text: string) => {
+  if (!('speechSynthesis' in window)) return;
+  const cleanText = text.replace(/[*#]/g, '');
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(cleanText);
+  
+  const voices = window.speechSynthesis.getVoices();
+  const femaleVoice = voices.find(v => 
+    v.name.includes('Female') || 
+    v.name.includes('Samantha') || 
+    v.name.includes('Victoria') || 
+    v.name.includes('Google US English') || 
+    v.name.includes('Zira') || 
+    (v.name.toLowerCase().includes('english') && v.name.toLowerCase().includes('female'))
+  );
+  
+  if (femaleVoice) utterance.voice = femaleVoice;
+  window.speechSynthesis.speak(utterance);
 };
 
 const fetchBotResponse = async (history: Message[], input: string): Promise<string> => {
@@ -433,31 +454,47 @@ const ChatPage = ({ profile, ...props }: any) => {
   const [isVoiceEnabled, setIsVoiceEnabled] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const recognitionRef = useRef<any>(null);
 
   useEffect(() => { DB.getMessages('main').then(setMessages); }, []);
   useEffect(() => { scrollRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, isTyping]);
 
   const toggleListening = () => {
+    if (isListening && recognitionRef.current) {
+      recognitionRef.current.stop();
+      setIsListening(false);
+      return;
+    }
+
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
       alert("Speech recognition is not supported in your browser.");
       return;
     }
     
-    if (isListening) return;
-
     const recognition = new SpeechRecognition();
-    recognition.continuous = false;
+    recognition.continuous = true;
     recognition.interimResults = false;
     
     recognition.onstart = () => setIsListening(true);
     recognition.onresult = (e: any) => {
-      const transcript = e.results[0][0].transcript;
-      setInput(prev => prev ? prev + ' ' + transcript : transcript);
+      let finalTranscript = '';
+      for (let i = e.resultIndex; i < e.results.length; ++i) {
+        if (e.results[i].isFinal) {
+          finalTranscript += e.results[i][0].transcript;
+        }
+      }
+      if (finalTranscript) {
+        const cleaned = finalTranscript.replace(/\b(umm|uh|ah|hmm|like)\b/gi, '').replace(/\s{2,}/g, ' ').trim();
+        if (cleaned) {
+          setInput(prev => prev ? prev + ' ' + cleaned : cleaned);
+        }
+      }
     };
     recognition.onerror = () => setIsListening(false);
     recognition.onend = () => setIsListening(false);
     
+    recognitionRef.current = recognition;
     recognition.start();
   };
 
@@ -469,11 +506,8 @@ const ChatPage = ({ profile, ...props }: any) => {
     setMessages(prev => [...prev, userMsg]);
     setIsTyping(true);
     const botResponse = await fetchBotResponse(messages, text);
-    if (isVoiceEnabled && 'speechSynthesis' in window) {
-      const cleanText = botResponse.replace(/[*#]/g, '');
-      const utterance = new SpeechSynthesisUtterance(cleanText);
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.speak(utterance);
+    if (isVoiceEnabled) {
+      speakText(botResponse);
     }
     const botMsg = await DB.saveMessage('main', 'bot', botResponse);
     setMessages(prev => [...prev, botMsg]);
@@ -522,8 +556,17 @@ const ChatPage = ({ profile, ...props }: any) => {
           {messages.map(m => (
             <div key={m.id} className={`flex ${m.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
               <div className={`max-w-[85%] p-4 rounded-3xl ${m.sender === 'user' ? 'bg-indigo-600 text-white rounded-tr-none' : 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-tl-none shadow-sm'}`}>
-                <p className="text-sm leading-relaxed font-medium">{m.text}</p>
-                <span className={`text-[10px] mt-2 block opacity-40 ${m.sender === 'user' ? 'text-right' : ''}`}>{m.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                <p className="text-sm leading-relaxed font-medium whitespace-pre-wrap">{m.text}</p>
+                <div className={`flex items-center gap-2 mt-2 opacity-40 ${m.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <span className="text-[10px]">{m.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                  <button 
+                    onClick={() => speakText(m.text)}
+                    className="hover:text-white transition-colors p-1"
+                    title="Read aloud"
+                  >
+                    <Volume2 className="w-3 h-3" />
+                  </button>
+                </div>
               </div>
             </div>
           ))}
